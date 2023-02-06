@@ -60,25 +60,19 @@ const rarAPI = $args => new Promise(async resolve => {
 const simpleFileListing = $stdout => {
 	try {
 		if ($stdout.includes(' Attributes      Size     Date    Time   Name')) {
-	    	$stdout = $stdout.split(' ').join('|');
-	    	for (;;) {
-	    		if (!$stdout.includes('||')) break;
-	    		$stdout = $stdout.split('||').join('|');
-	    	};
-	    	$stdout = $stdout.split('|----\r\n')[1].split('\n-----------|')[0].split('\r').filter(cdata => cdata.includes('|') && cdata.split('|').length >= 6);
-	    	if ($stdout.length !== 0) {
-	    		$stdout = $stdout.map(cdata => {
-	    			let cdataData = {
-	    				path: cdata.split('|').slice(5, cdata.split('|').length).join(''),
-	    				isDirectory: (cdata.split('|')[1] === '...D...'),
-	    			    modified: new Date(`${cdata.split('|')[3]}T${cdata.split('|')[4]}:00`)
-	    			}
-	    			if (!cdataData.isDirectory) {
-	    				cdataData['size'] = Number(cdata.split('|')[2])
-	    			}
-	    			return cdataData
-	    	    });
-	    	}
+			$stdout = $stdout.split('----\r\n')[1].split('\r\n-----------')[0];
+			$stdout = $stdout.split('\r\n').map(cdata => {
+				let modified = cdata.split('  ')[cdata.split('  ').length-2];
+				let cdataData = {
+	    			path: cdata.split('  ')[cdata.split('  ').length-1],
+	    			isDirectory: (cdata.includes('...D...')),
+	    		    modified: new Date(`${modified.split(' ')[0]}T${modified.split(' ')[1]}:00`)
+	    		};
+	    		if (!cdataData.isDirectory) {
+	    	    	cdataData['size'] = Number(cdata.split('  ')[cdata.split('  ').length-3]);
+	    	    };
+	    	    return cdataData;
+			});
 	    	return $stdout;
 	    } else {
 	    	return [];
@@ -103,10 +97,11 @@ const advancedFileListing = $stdout => {
 					    compression: cdata.split('Compression: ')[1].split('\r')[0]
 				    };
 				    if (!isDir) {
-				    	cdataData['size'] = Number(cdata.split('Size: ')[1].split('\r')[0]);
-				    	cdataData['packedSize'] = Number(cdata.split('Packed size: ')[1].split('\r')[0]);
-				    	cdataData['ratio'] = cdata.split('Ratio: ')[1].split('\r')[0];
-				    	cdataData['CRC32'] = cdata.split('CRC32: ')[1].split('\r')[0];
+				    	if (cdata.includes('Size: ')) {cdataData['size'] = Number(cdata.split('Size: ')[1].split('\r')[0])};
+				    	if (cdata.includes('Packed size: ')) {cdataData['packedSize'] = Number(cdata.split('Packed size: ')[1].split('\r')[0])};
+				    	if (cdata.includes('Ratio: ')) {cdataData['ratio'] = cdata.split('Ratio: ')[1].split('\r')[0]};
+				    	if (cdata.includes('CRC32: ')) {cdataData['CRC32'] = cdata.split('CRC32: ')[1].split('\r')[0]};
+				    	if (cdata.includes('CRC32 MAC:')) {cdataData['CRC32'] = cdata.split('CRC32 MAC: ')[1].split('\r')[0]};
 				    };
 					return cdataData;
 			    });
@@ -119,6 +114,27 @@ const advancedFileListing = $stdout => {
 		return [];
 	};
 };
+
+// we cache every list file for force delete case close() has called.
+let listFiles = [];
+
+const createListFile = $files => new Promise((resolve, reject) => {
+	$files = $files.map($file => {
+		if (typeof $file === 'string') {
+			return $file.replaceAll('/', '\\');
+		} else if (typeof $file === 'object') {
+			return $file.path.replaceAll('/', '\\');
+		};
+	});
+	const listPath = path.resolve(path.join(os.tmpdir(), `rar_tempListFile${new Date().getTime()}.lst`));
+	fs.writeFile(listPath, $files.join('\r\n'), err => {
+		if (err) return reject(err);
+		listFiles.push(listPath);
+		resolve(listPath);
+	});
+});
+
+let $pass = false;
 
 class Rar {
 	constructor (rarPath) {
@@ -142,16 +158,15 @@ class Rar {
 		    	fs.exists(this._rarPath, $rarExists => {
                     if (!$rarExists) {
                     	this.passwordRequired = false
-		        		this._stream = fs.createWriteStream(this._rarPath);
+		        		//this._stream = fs.createWriteStream(this._rarPath);
 		        		resolve(true);
 		        		return this._event.emit('ready', true);
-		        		//resolve(true);
-		        		//return this._event.emit('error', new Error(`Rar file not found in specified path! (${this._rarPath})`));
 		        	};
 		        	fs.stat(this._rarPath, async ($err, $stats) => {
 		        		if ($err) {resolve(true);return this._event.emit('error', new Error($err));};
 		        		if ($stats.isDirectory()) {resolve(true);return this._event.emit('error', new Error(`Received path is a directory, not a .rar file! (${this._rarPath})`));};
-		        	    // Check if file need password otherwise is ready ;)
+		        	    
+		        	    // We perform a listing for files operation to check for password error
 		        	    let $verification = await rarAPI(['l', `"${this._rarPath}"`]);
 		        	    if ($verification.$error && $verification.$error.message === 'RAR ERROR: MISSING PASSWORD!') {
 		        	    	this.passwordRequired = true;
@@ -160,6 +175,7 @@ class Rar {
 		        	    } else {
 		        	    	const files = simpleFileListing($verification.$stdout);
 		        	    	if (files.length > 0) {
+		        	    		// We test some random file to check if files is encrypted with password otherwhise document is ready ;)
 		        	    		let { $error, $stdout, $stderr } = await rarAPI(['t', `"${this._rarPath}"`, `"${files[0].path}"`]);
 		        	    	    if ($error && $error.message === 'RAR ERROR: MISSING PASSWORD!') {
 		        	    	    	this.passwordRequired = true;
@@ -214,14 +230,13 @@ class Rar {
 			};
 			if (!this._promise) return response(new Error('No rar file loaded!'));
 			await this._promise;
-			if (this.passwordRequired && !this._password) return response(new Error('Rar file requires password, use "setPassword" instead!'));
+			if (this.passwordRequired && !$pass) return response(new Error('Rar file requires password, use "setPassword" instead!'));
 			let $args = [
 		    	(opts.advanced) ? 'lt' : 'l',
 		    	`"${this._rarPath}"`
 		    ];
-		    if (this._password) $args.push(`-p${this._password}`);
+		    if ($pass) $args.push(`-p${$pass}`);
 		    let { $error, $stdout, $stderr } = await rarAPI($args);
-		    //await new Promise(async resolve => exec(`Rar.exe ${$args.join(' ')}`, {cwd: path.resolve('./libs'), windowsHide: true, windowsVerbatimArguments: true}, async ($err, $std, $serr) => resolve($err, $std, $serr)))
 		    if ($error) {
 		    	if ($error.message === 'RAR ERROR: MISSING PASSWORD!') this._event.emit('password', true);
 		    	return response($error);
@@ -251,7 +266,7 @@ class Rar {
 			if (typeof opts !== 'object' || !opts.hasOwnProperty('path') || typeof opts.path !== 'string') return response(new Error('Invalid options, send key "path" as json object at least!'));
 			opts.path = path.resolve(opts.path);
 			await this._promise;
-			if (this.passwordRequired && !this._password) return response(new Error('Rar file requires password, use "setPassword" instead!'));
+			if (this.passwordRequired && !$pass) return response(new Error('Rar file requires password, use "setPassword" instead!'));
 		    let $args = [
 		    	'x',
 		    	'-o+',
@@ -259,14 +274,15 @@ class Rar {
 		    	'-r',
 		    	`"${this._rarPath}"`
 		    ];
-		    if (this._password) $args.push(`-p${this._password}`);
+		    if ($pass) $args.push(`-p${$pass}`);
+	        let listFileRef = null
 	        if (typeof opts === 'object' && opts.hasOwnProperty('files') && typeof opts.files === 'object' && opts.files.length > 0) {
-	        	$args.push('[');
-	        	for (let $file of opts.files) $args.push(`"${(typeof $file === 'object') ? $file.path.replaceAll('/', '\\') : $file.replaceAll('/', '\\')}"`);
-	        	$args.push(']');
+	        	listFileRef = await createListFile(opts.files)
+	        	$args.push(`@"${listFileRef}"`);
 	        };
 	        $args.push(`-op"${opts.path}"`);
 	        let { $error, $stdout, $stderr } = await rarAPI($args);
+	        if (listFileRef !== null) fs.unlink(listFileRef, async () => {listFiles = listFiles.filter($listFile => $listFile !== listFileRef)});
 	        if ($error) {
 		    	if ($error.message === 'RAR ERROR: MISSING PASSWORD!') this._event.emit('password', true);
 		    	return response($error);
@@ -296,13 +312,13 @@ class Rar {
 			if (typeof pathInsideRar !== 'string' || pathInsideRar.length <= 0) return response(new Error('ERROR: Invalid or missing file path!'));
 			pathInsideRar = pathInsideRar.replaceAll('/', '\\');
 			await this._promise;
-			if (this.passwordRequired && !this._password) return response(new Error('Rar file requires password, use "setPassword" instead!'));
+			if (this.passwordRequired && !$pass) return response(new Error('Rar file requires password, use "setPassword" instead!'));
 			let $args = [
 		    	'p',
 		    	`"${this._rarPath}"`,
 		    	`"${pathInsideRar}"`
 		    ];
-		    if (this._password) $args.push(`-p${this._password}`);
+		    if ($pass) $args.push(`-p${$pass}`);
 		    let { $error, $stdout, $stderr } = await rarAPI($args);
 	        if ($error) {
 		    	if ($error.message === 'RAR ERROR: MISSING PASSWORD!') this._event.emit('password', true);
@@ -333,14 +349,14 @@ class Rar {
 			if (typeof pathInsideRar !== 'string' || pathInsideRar.length <= 0) return response(new Error('ERROR: Invalid or missing file path!'));
 			pathInsideRar = pathInsideRar.replaceAll('/', '\\')
 			await this._promise;
-			if (this.passwordRequired && !this._password) return response(new Error('Rar file requires password, use "setPassword" instead!'));
+			if (this.passwordRequired && !$pass) return response(new Error('Rar file requires password, use "setPassword" instead!'));
 			let $stream = new EventEmitter()
 			let $args = [
 		    	'p',
 		    	`"${this._rarPath}"`,
 		    	`"${pathInsideRar}"`
 		    ];
-		    if (this._password) $args.push(`-p${this._password}`);
+		    if ($pass) $args.push(`-p${$pass}`);
 		    const child = spawn('Rar.exe', $args, {cwd: path.resolve('./libs'), windowsHide: true, windowsVerbatimArguments: true});
 		    child.once('error', $err => {
 				child.removeAllListeners();
@@ -382,7 +398,7 @@ class Rar {
 			if (!this._promise) return response(new Error('No rar file loaded!'));
 			if (typeof files !== 'object' || files.length <= 0) return response(new Error('ERROR: Invalid or missing files to append!'));
 			await this._promise;
-			if (this.passwordRequired && !this._password) return response(new Error('Rar file requires password, use "setPassword" instead!'));
+			if (this.passwordRequired && !$pass) return response(new Error('Rar file requires password, use "setPassword" instead!'));
 			let $args = [
 		    	'u',
 		    	'-r',
@@ -390,11 +406,11 @@ class Rar {
 		    	'-ap',
 		    	`"${this._rarPath}"`
 		    ];
-		    $args.push('[');
-		    for (let $file of files) $args.push(`"${path.resolve($file)}"`);
-		    $args.push(']');
-		    if (this._password) $args.push(`-p${this._password}`);
+		    let listFileRef = await createListFile(files);
+	        $args.push(`@"${listFileRef}"`);
+		    if ($pass) $args.push(`-p${$pass}`);
 		    let { $error, $stdout, $stderr } = await rarAPI($args);
+		    fs.unlink(listFileRef, async () => {listFiles = listFiles.filter($listFile => $listFile !== listFileRef)});
 	        if ($error) {
 		    	return response($error);
 		    } else if ($stderr !== "") {
@@ -421,23 +437,17 @@ class Rar {
 			if (!this._promise) return response(new Error('No rar file loaded!'));
 			if (typeof files !== 'object' || files.length <= 0) return response(new Error('ERROR: Invalid or missing files to append!'));
 			await this._promise;
-			if (this.passwordRequired && !this._password) return response(new Error('Rar file requires password, use "setPassword" instead!'));
+			if (this.passwordRequired && !$pass) return response(new Error('Rar file requires password, use "setPassword" instead!'));
 			let $args = [
 		    	'd',
 		    	'-r',
 		    	`"${this._rarPath}"`
 		    ];
-		    $args.push('[');
-		    for (let $file of files) {
-		    	if (typeof $file === 'string') {
-		    		$args.push(`"${path.normalize($file)}"`);
-		    	} else {
-		    		$args.push(`"${path.normalize($file.path)}"`);
-		    	}
-		    }
-		    $args.push(']');
-		    if (this._password) $args.push(`-p${this._password}`);
+		    let listFileRef = await createListFile(files);
+	        $args.push(`@"${listFileRef}"`);
+		    if ($pass) $args.push(`-p${$pass}`);
 		    let { $error, $stdout, $stderr } = await rarAPI($args);
+	        fs.unlink(listFileRef, async () => {listFiles = listFiles.filter($listFile => $listFile !== listFileRef)});
 	        if ($error) {
 		    	return response($error);
 		    } else if ($stderr !== "") {
@@ -465,14 +475,14 @@ class Rar {
 			if (typeof oldpath !== 'string' || oldpath.length <= 0) return response(new Error('ERROR: Invalid or missing file path!'));
 			if (typeof newPath !== 'string' || newPath.length <= 0) return response(new Error('ERROR: Invalid or missing file new path!'));
 			await this._promise;
-			if (this.passwordRequired && !this._password) return response(new Error('Rar file requires password, use "setPassword" instead!'));
+			if (this.passwordRequired && !$pass) return response(new Error('Rar file requires password, use "setPassword" instead!'));
 			let $args = [
 		    	'rn',
 		    	`"${this._rarPath}"`
 		    ];
 		    $args.push(`"${path.normalize(oldpath)}"`);
 		    $args.push(`"${path.normalize(newPath)}"`);
-		    if (this._password) $args.push(`-p${this._password}`);
+		    if ($pass) $args.push(`-p${$pass}`);
 		    let { $error, $stdout, $stderr } = await rarAPI($args);
 	        if ($error) {
 		    	return response($error);
@@ -494,8 +504,8 @@ class Rar {
 		    	return $res;
 		    };
 		    if (typeof password !== 'string' || password.length <= 0 || password.length > 128) return response(false);
-		    if (this._password && password === this._password) return response(true);
-		    if (this._password && password !== this._password) return response(false);
+		    if ($pass && password === $pass) return response(true);
+		    if ($pass && password !== $pass) return response(false);
 		    let $args = [
 		    	't',
 		    	`"${this._rarPath}"`,
@@ -505,7 +515,7 @@ class Rar {
 		    if ($error || $stderr !== "") {
 		    	return response(false);
 		    } else {
-		    	this._password = password;
+		    	$pass = password
 		    	this._event.emit('ready', true);
 		    	return response(true);
 		    }
@@ -513,8 +523,9 @@ class Rar {
 	};
 
 	close () {
-		this._event.removeAllListeners();
 		for (const $key of Object.keys(this)) delete this[$key];
+		if (listFiles.length > 0) listFiles.forEach(async listFile => fs.unlink(listFile, async () => {}));
+	    listFiles = [];
 	};
 };
 
