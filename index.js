@@ -209,7 +209,7 @@ class Rar {
 					return $res;
 				} else {
 					if (fn !== null) return fn($err);
-					return $err;
+					throw $err;
 				};
 			};
 			if (!this._promise) return response(new Error('No rar file loaded!'));
@@ -240,7 +240,11 @@ class Rar {
 		}
 		const response = $res => {
 			if (fn !== null) return fn($res);
-			return $res;
+			if ($res === null) {
+				return $res;
+			} else {
+				throw $res;
+			}
 		};
 		return (async () => {
 			if (!this._promise) return response(new Error('No rar file loaded!'));
@@ -258,7 +262,7 @@ class Rar {
 		    if (this._password) $args.push(`-p${this._password}`);
 	        if (typeof opts === 'object' && opts.hasOwnProperty('files') && typeof opts.files === 'object' && opts.files.length > 0) {
 	        	$args.push('[');
-	        	for (let $file of opts.files) $args.push(`"${(typeof $file === 'object') ? $file.path : $file}"`);
+	        	for (let $file of opts.files) $args.push(`"${(typeof $file === 'object') ? $file.path.replaceAll('/', '\\') : $file.replaceAll('/', '\\')}"`);
 	        	$args.push(']');
 	        };
 	        $args.push(`-op"${opts.path}"`);
@@ -285,12 +289,12 @@ class Rar {
 					return $res;
 				} else {
 					if (fn !== null) return fn($err);
-					return $err;
+					throw $err;
 				};
 			};
 			if (!this._promise) return response(new Error('No rar file loaded!'));
 			if (typeof pathInsideRar !== 'string' || pathInsideRar.length <= 0) return response(new Error('ERROR: Invalid or missing file path!'));
-			pathInsideRar = pathInsideRar.replaceAll('/', '\\')
+			pathInsideRar = pathInsideRar.replaceAll('/', '\\');
 			await this._promise;
 			if (this.passwordRequired && !this._password) return response(new Error('Rar file requires password, use "setPassword" instead!'));
 			let $args = [
@@ -322,7 +326,7 @@ class Rar {
 					return $res;
 				} else {
 					if (fn !== null) return fn($err);
-					return $err;
+					throw $err;
 				};
 			};
 			if (!this._promise) return response(new Error('No rar file loaded!'));
@@ -369,7 +373,11 @@ class Rar {
 			};
 			const response = $res => {
 				if (fn !== null) return fn($res);
-				return $res;
+				if ($res === null) {
+					return $res;
+				} else {
+					throw $res;
+				}
 			};
 			if (!this._promise) return response(new Error('No rar file loaded!'));
 			if (typeof files !== 'object' || files.length <= 0) return response(new Error('ERROR: Invalid or missing files to append!'));
@@ -404,7 +412,11 @@ class Rar {
 			};
 			const response = $res => {
 				if (fn !== null) return fn($res);
-				return $res;
+				if ($res === null) {
+					return $res;
+				} else {
+					throw $res;
+				}
 			};
 			if (!this._promise) return response(new Error('No rar file loaded!'));
 			if (typeof files !== 'object' || files.length <= 0) return response(new Error('ERROR: Invalid or missing files to append!'));
@@ -443,7 +455,11 @@ class Rar {
 			};
 			const response = $res => {
 				if (fn !== null) return fn($res);
-				return $res;
+				if ($res === null) {
+					return $res;
+				} else {
+					throw $res;
+				}
 			};
 			if (!this._promise) return response(new Error('No rar file loaded!'));
 			if (typeof oldpath !== 'string' || oldpath.length <= 0) return response(new Error('ERROR: Invalid or missing file path!'));
