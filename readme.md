@@ -6,6 +6,8 @@ This is a rar cli Api implementation in JavaScript. It uses `0 depencies` ;)
 
 Create or read an existing rar file and do anything you want with his content like extract, read, rename, remove or even append more content!
 
+Addendum: Super WinRar deal with huge rar files or operations like a charm ❤️
+
 ## Installation
 
 Install with npm
@@ -206,14 +208,20 @@ rar.list((err, files) => {
 ```json
 [
 	{
-		"path": "package.json",
+		"path": "index.js",
 		"isDirectory": false,
 		"modified": 2022-03-03T13:16:27.000Z,
 		"compression": "RAR 5.0(v50) -m3 -md=1M",
-		"size": 271,
-		"packedSize": 54,
+		"size": 2253,
+		"packedSize": 773,
 		"ratio": "34%",
 		"CRC32": "38A5A912"
+	},
+	{
+		"path": "New folder",
+		"isDirectory": true,
+		"modified": 2022-03-03T13:16:27.000Z,
+		"compression": "RAR 5.0(v50) -m0 -md=0K"
 	}
 ]
 ```
