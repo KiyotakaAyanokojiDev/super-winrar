@@ -11,7 +11,7 @@ Create or read an existing rar file and do anything you want with his content li
 Install with npm
 
 ```sh
-npm i super-winrar
+npm i super-winrar@latest
 ```
 
 ## Usage
@@ -168,6 +168,7 @@ rar.setPassword('abc', async (isCorrect) => {
 	if (isCorrect) console.log('Correct password!');
 })();
 ```
+
 ***
 
 ***`list()`***
@@ -181,13 +182,13 @@ rar.setPassword('abc', async (isCorrect) => {
 
 
 ```ts
-list(opts: object = {}, callback(err: error, files: object): function => {});
+list(opts: object, (err: error, files: object): function => {});
 ```
 
 **Exemple**:
 
-```ts
-rar.list( callback(err: error, files: object) => {
+```js
+rar.list((err, files) => {
 	if (err) return console.log(err.message);
 	console.log('files', files);
 });
@@ -199,6 +200,24 @@ rar.list( callback(err: error, files: object) => {
 	console.log('files', files);
 })();
 ```
+
+**files**:
+
+```json
+[
+	{
+		"path": "package.json",
+		"isDirectory": false,
+		"modified": 2022-03-03T13:16:27.000Z,
+		"compression": "RAR 5.0(v50) -m3 -md=1M",
+		"size": 271,
+		"packedSize": 54,
+		"ratio": "34%",
+		"CRC32": "38A5A912"
+	}
+]
+```
+
 ***
 
 ***`extract()`***
@@ -212,12 +231,12 @@ rar.list( callback(err: error, files: object) => {
 
 
 ```ts
-extract(opts: object = {}, callback(err: error): function => {});
+extract(opts: object, (err: error): function => {});
 ```
 
 **Exemple**:
 
-```ts
+```js
 rar.extract({path: './extractToThisFolder', files: ['fileInsideRar.txt', 'folderInsideRar']}, async (err) => {
 	if (err) return console.log(err.message);
 	console.log('extraction completed!');
@@ -234,6 +253,7 @@ rar.extract({path: './extractToThisFolder', files: ['fileInsideRar.txt', 'folder
 	};
 })();
 ```
+
 ***
 
 ***`getFileBuffer()`***
@@ -247,12 +267,12 @@ rar.extract({path: './extractToThisFolder', files: ['fileInsideRar.txt', 'folder
 
 
 ```ts
-getFileBuffer(pathInsideRar: string, callback(err: error, buffer: object): function => {});
+getFileBuffer(pathInsideRar: string, (err: error, buffer: object): function => {});
 ```
 
 **Exemple**:
 
-```ts
+```js
 rar.getFileBuffer('fileInsideRar.txt', async (err, buffer) => {
 	if (err) return console.log(err.message);
 	console.log('File size is', buffer.length);
@@ -269,6 +289,7 @@ rar.getFileBuffer('fileInsideRar.txt', async (err, buffer) => {
 	};
 })();
 ```
+
 ***
 
 ***`getFileBufferStream()`***
@@ -282,12 +303,12 @@ rar.getFileBuffer('fileInsideRar.txt', async (err, buffer) => {
 
 
 ```ts
-getFileBufferStream(pathInsideRar: string, callback(err: error, stream: object): function => {});
+getFileBufferStream(pathInsideRar: string, (err: error, stream: object): function => {});
 ```
 
 **Exemple**:
 
-```ts
+```js
 rar.getFileBufferStream('fileInsideRar.txt', async (err, bufferStream) => {
 	if (err) return console.log(err.message);
     let buffer = new Buffer.from([])
@@ -317,6 +338,7 @@ rar.getFileBufferStream('fileInsideRar.txt', async (err, bufferStream) => {
 	};
 })();
 ```
+
 ***
 
 ***`append()`***
@@ -330,12 +352,12 @@ rar.getFileBufferStream('fileInsideRar.txt', async (err, bufferStream) => {
 
 
 ```ts
-append(files: object, callback(err: error): function => {});
+append(files: object, (err: error): function => {});
 ```
 
 **Exemple**:
 
-```ts
+```js
 rar.append(['package.json', 'node_modules'], async (err) => {
 	if (err) return console.log(err.message);
     console.log('Items append to document!');
@@ -351,6 +373,7 @@ rar.append(['package.json', 'node_modules'], async (err) => {
 	};
 })();
 ```
+
 ***
 
 ***`remove()`***
@@ -364,12 +387,12 @@ rar.append(['package.json', 'node_modules'], async (err) => {
 
 
 ```ts
-remove(files: object, callback(err: error): function => {});
+remove(files: object, (err: error): function => {});
 ```
 
 **Exemple**:
 
-```ts
+```js
 rar.remove(['package.json', 'node_modules'], async (err) => {
 	if (err) return console.log(err.message);
     console.log('Items removed from document!');
@@ -385,6 +408,7 @@ rar.remove(['package.json', 'node_modules'], async (err) => {
 	};
 })();
 ```
+
 ***
 
 ***`rename()`***
@@ -399,12 +423,12 @@ rar.remove(['package.json', 'node_modules'], async (err) => {
 
 
 ```ts
-rename(oldpath: string, newPath: string, callback(err: error): function => {});
+rename(oldpath: string, newPath: string, (err: error): function => {});
 ```
 
 **Exemple**:
 
-```ts
+```js
 rar.rename(['package.json', 'package.txt'], async (err) => {
 	if (err) return console.log(err.message);
     console.log('File inside rar package.json renamed to package.txt!');
