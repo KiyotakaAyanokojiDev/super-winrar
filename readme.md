@@ -2,7 +2,7 @@
 
 ***Get super powers with nodejs+winrar***
 
-This is a rar cli Api implementation in JavaScript. It uses `0 depencies` ;)
+This is a rar cli Api implementation in JavaScript. It uses `0 dependencies` ;)
 
 Create or read an existing rar file and do anything you want with his content like extract, read, rename, remove or even append more content!
 
