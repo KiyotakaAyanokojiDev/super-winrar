@@ -1,0 +1,21 @@
+{
+  "name": "super-winrar",
+  "version": "1.2.9",
+  "description": "Get super powers with Nodejs+WinRar ;)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "node libs/rar-6.11.min.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KiyotakaAyanokojiDev/super-winrar.git"
+  },
+  "keywords": ["rar", "winrar", "extract", "decompress", "super", "rename", "password", "read", "buffer", "unrar", "compress", "encrypt", "decrypt"],
+  "author": "Ayanokoji",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/KiyotakaAyanokojiDev/super-winrar/issues"
+  },
+  "homepage": "https://github.com/KiyotakaAyanokojiDev/super-winrar"
+}
